@@ -34,7 +34,7 @@ class Params:
     input_shape = None
 
     '''loss and optimizer'''
-    loss_tasks: List = field(default_factory=lambda: ['noraml', 'backdoor'])
+    loss_tasks: List = field(default_factory=lambda: ['noraml']) #, 'backdoor'])
     loss_balance: str = 'fixed'
     optimizer: str = 'SGD'
 
