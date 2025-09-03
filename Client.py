@@ -88,7 +88,7 @@ class Client(Clientbase):
         # A benign client should not have self.attacks
         self.attacks = attacks if self.is_malicious else None
 
-        if not self.is_malicious or not self.attacks.handcraft:
+        if not self.is_malicious or (self.attacks is not None and not self.attacks.handcraft):
             self.train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1, drop_last=True)
         else:
             idxs = range(self.n_sample)
@@ -105,16 +105,17 @@ class Client(Clientbase):
         self.criterion = nn.CrossEntropyLoss(reduction='none')
 
     def reset_loader(self):
-        batch_size = self.handcraft_loader.batch_size
-        shuffled_idxs = random.sample(range(self.n_sample), k=self.n_sample)
-        nt = int(0.8 * self.n_sample)
-        train_ids, test_ids = shuffled_idxs[:nt], shuffled_idxs[nt:]
-        train_dataset = Subset(self.dataset, train_ids)
-        handcraft_dataset = Subset(self.dataset, test_ids)
-        self.train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0,
-                                       drop_last=True)
-        self.handcraft_loader = DataLoader(handcraft_dataset, batch_size=batch_size, shuffle=True, num_workers=0,
+        if hasattr(self, 'handcraft_loader'):
+            batch_size = self.handcraft_loader.batch_size
+            shuffled_idxs = random.sample(range(self.n_sample), k=self.n_sample)
+            nt = int(0.8 * self.n_sample)
+            train_ids, test_ids = shuffled_idxs[:nt], shuffled_idxs[nt:]
+            train_dataset = Subset(self.dataset, train_ids)
+            handcraft_dataset = Subset(self.dataset, test_ids)
+            self.train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0,
                                            drop_last=True)
+            self.handcraft_loader = DataLoader(handcraft_dataset, batch_size=batch_size, shuffle=True, num_workers=0,
+                                               drop_last=True)
 
     def reset_optimizer(self, params) -> optim.Optimizer:
         if params.optimizer == 'SGD':
@@ -288,7 +289,7 @@ class Client(Clientbase):
                 batch = task.get_batch(i, data)
                 self.optimizer.zero_grad()
                 loss = self.compute_blind_loss(model, batch, does_attack=True)
-                if self.is_malicious:
+                if self.is_malicious and self.attacks is not None:
                     sim_factor = self.attacks.params.model_similarity_factor
                     loss = (1-sim_factor) * loss + sim_factor * model_similarity_loss(raw_model, model)
                 
@@ -308,7 +309,7 @@ class Client(Clientbase):
 
 
     def train(self, task):
-        if self.is_malicious and self.attacks.neurotoxin:
+        if self.is_malicious and self.attacks is not None and self.attacks.neurotoxin:
             print("use neurotoxin-train as normal-train")
             self.neurotoxin_train(task)
             return
@@ -333,7 +334,7 @@ class Client(Clientbase):
                 batch = task.get_batch(i, data)
                 self.optimizer.zero_grad()
                 loss = self.compute_blind_loss(model, batch, does_attack=True)
-                if self.is_malicious:
+                if self.is_malicious and self.attacks is not None:
                     sim_factor = self.attacks.params.model_similarity_factor
                     loss = (1-sim_factor) * loss + sim_factor * model_similarity_loss(raw_model, model)
                 loss.backward()
@@ -350,7 +351,7 @@ class Client(Clientbase):
 
     def handcraft(self, task):
         self.handcraft_rnd = self.handcraft_rnd + 1
-        if self.is_malicious and self.attacks.handcraft:
+        if self.is_malicious and self.attacks is not None and self.attacks.handcraft:
             model = self.local_model
             model.eval()
             handcraft_loader, train_loader = self.handcraft_loader, self.train_loader
