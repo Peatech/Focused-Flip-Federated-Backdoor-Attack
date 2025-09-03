@@ -98,7 +98,10 @@ class FederatedBackdoorExperiment:
             self.server.aggregate_global_model(self.clients, chosen_ids, None)
             print('Round {}: FedAvg Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False))
-            fl_report.record_round_vars(self.test(epoch, backdoor=True))
+            if len(self.malicious_ids) > 0:
+                fl_report.record_round_vars(self.test(epoch, backdoor=True))
+            else:
+                print("Skipping backdoor test - no malicious clients (n_malicious_client=0)")
             if (epoch + 1) % 20 == 0:
                 saved_name = identifier + "_{}".format(epoch + 1)
                 save_report(fl_report, './{}'.format(saved_name))
@@ -121,11 +124,17 @@ class FederatedBackdoorExperiment:
             self.server.aggregate_global_model(self.clients, chosen_ids, None)
             print('Round {}: FedAvg Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False), notation={'is_distill': False})
-            fl_report.record_round_vars(self.test(epoch, backdoor=True), notation={'is_distill': False})
+            if len(self.malicious_ids) > 0:
+                fl_report.record_round_vars(self.test(epoch, backdoor=True), notation={'is_distill': False})
+            else:
+                print("Skipping backdoor test - no malicious clients (n_malicious_client=0)")
             self.server.fine_tuning(self.task, self.clients, chosen_ids)
             print('Round {}: Finetuning Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False), notation={'is_distill': True})
-            fl_report.record_round_vars(self.test(epoch, backdoor=True), notation={'is_distill': True})
+            if len(self.malicious_ids) > 0:
+                fl_report.record_round_vars(self.test(epoch, backdoor=True), notation={'is_distill': True})
+            else:
+                print("Skipping backdoor test - no malicious clients (n_malicious_client=0)")
             if (epoch + 1) % 50 == 0:
                 saved_name = identifier + "_{}".format(epoch + 1)
                 save_report(fl_report, './{}'.format(saved_name))
