@@ -12,7 +12,7 @@ posion_image_ids = []
 @dataclass
 class Params:
     '''defence rules'''
-    defence: str = 'fedavg' # mediod-distillation, ensemble-distillation, robustlr, finetuning , certified-robustness
+    defence: str = 'fedavg' # mediod-distillation, ensemble-distillation, robustlr, finetuning , certified-robustness, fedavgcka
     '''task and model'''
     task: str = 'CifarFed' #CifarFed
     model: str = 'resnet18' #resnet18
@@ -45,7 +45,7 @@ class Params:
     '''clients'''
     n_clients: int = 20
     #select
-    n_malicious_client = 4
+    n_malicious_client = 0
     chosen_rate: float = 0.5
 
     '''dataset path'''
@@ -122,9 +122,41 @@ class Params:
     server_dataset = False
     resultdir = 'result-fedavg'
 
+    # FedAvgCKA Defense Configuration
+    fedavgcka_enabled: bool = False
+    "Enable FedAvgCKA pre-aggregation defense"
+
+    fedavgcka_root_dataset_size: int = 16
+    "Size of root dataset R for activation extraction (paper shows 16+ effective)"
+
+    fedavgcka_root_dataset_strategy: str = "class_balanced"
+    "Strategy for root dataset sampling: 'random' or 'class_balanced'"
+
+    fedavgcka_layer_comparison: str = "penultimate"
+    "Layer(s) for CKA comparison: 'penultimate', 'layer3', 'layer2', or 'multi_layer'"
+
+    fedavgcka_trim_fraction: float = 0.5
+    "Fraction of clients to exclude based on CKA scores (0.5 = exclude bottom 50%)"
+
+    fedavgcka_multi_layer_weights: Dict[str, float] = field(default_factory=lambda: {
+        'penultimate': 0.5,
+        'layer3': 0.3, 
+        'layer2': 0.2
+    })
+    "Weights for combining CKA scores across multiple layers (when using multi_layer mode)"
+
+    fedavgcka_numerical_eps: float = 1e-12
+    "Small constant for numerical stability in CKA computation"
+
+    fedavgcka_log_scores: bool = True
+    "Whether to log detailed CKA scores and client selections"
+
     def __post_init__(self):
         # enable logging anyways when saving statistics
         self.running_losses = defaultdict(list)
         self.running_scales = defaultdict(list)
         self.timing_data = defaultdict(list)
-
+        
+        # Auto-enable FedAvgCKA if defense is set to 'fedavgcka'
+        if self.defence == 'fedavgcka':
+            self.fedavgcka_enabled = True
