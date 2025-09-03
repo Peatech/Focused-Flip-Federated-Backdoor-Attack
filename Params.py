@@ -45,7 +45,7 @@ class Params:
     '''clients'''
     n_clients: int = 20
     #select
-    n_malicious_client = 0
+    n_malicious_client = 4
     chosen_rate: float = 0.5
 
     '''dataset path'''
