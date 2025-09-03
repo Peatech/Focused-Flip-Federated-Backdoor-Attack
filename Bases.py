@@ -52,6 +52,10 @@ class FederatedBackdoorExperiment:
                                 chosen_rate=params.chosen_rate,
                                 dataset=server_dataset, batch_size=params.batch_size, device=params.device)
 
+        # Initialize FedAvgCKA if enabled
+        if hasattr(params, 'fedavgcka_enabled') and params.fedavgcka_enabled:
+            self.server.initialize_fedavgcka(self.task, params)
+
         handcraft_trigger, distributed = self.params.handcraft_trigger, self.params.distributed_trigger
         # print("handcraft_trigger:", handcraft_trigger, "distributed_trigger:", distributed)
         self.synthesizer = PatternSynthesizer(self.task, handcraft_trigger, distributed, (0, n_mal))
@@ -87,6 +91,10 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: FedAvg Training'.format(epoch))
+            
+            # Track current round for FedAvgCKA telemetry
+            self.server.current_round = epoch
+            
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -95,17 +103,50 @@ class FederatedBackdoorExperiment:
                 else:
                     client.handcraft(self.task)
                     client.train(self.task)
-            self.server.aggregate_global_model(self.clients, chosen_ids, None)
+            
+            # Use enhanced aggregate_global_model that supports FedAvgCKA
+            self.server.aggregate_global_model(self.clients, chosen_ids, None, self.params)
+            
             print('Round {}: FedAvg Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False))
             if len(self.malicious_ids) > 0:
                 fl_report.record_round_vars(self.test(epoch, backdoor=True))
             else:
                 print("Skipping backdoor test - no malicious clients (n_malicious_client=0)")
+            
+            # Log FedAvgCKA metrics if enabled
+            if (hasattr(self.params, 'fedavgcka_enabled') and 
+                self.params.fedavgcka_enabled and 
+                hasattr(self.server, 'fedavgcka_telemetry') and 
+                self.server.fedavgcka_telemetry):
+                
+                last_telemetry = self.server.fedavgcka_telemetry[-1]
+                print(f"Round {epoch} FedAvgCKA metrics:")
+                print(f"  - Selected: {last_telemetry.get('n_selected', 0)} clients")
+                print(f"  - Excluded: {last_telemetry.get('n_excluded', 0)} clients") 
+                if 'compute_time_s' in last_telemetry:
+                    print(f"  - Compute time: {last_telemetry['compute_time_s']:.2f} s")
+            
             if (epoch + 1) % 20 == 0:
                 saved_name = identifier + "_{}".format(epoch + 1)
                 save_report(fl_report, './{}'.format(saved_name))
             print('-' * 30)
+
+        # Log final FedAvgCKA statistics
+        if (hasattr(self.params, 'fedavgcka_enabled') and 
+            self.params.fedavgcka_enabled and 
+            hasattr(self.server, 'get_fedavgcka_telemetry')):
+            
+            telemetry = self.server.get_fedavgcka_telemetry()
+            if telemetry:
+                print("FedAvgCKA Defense Summary:")
+                total_selected = sum(t.get('n_selected', 0) for t in telemetry)
+                total_excluded = sum(t.get('n_excluded', 0) for t in telemetry)
+                avg_compute_time = sum(t.get('compute_time_s', 0) for t in telemetry if 'compute_time_s' in t) / len(telemetry)
+                
+                print(f"  - Total clients selected: {total_selected}")
+                print(f"  - Total clients excluded: {total_excluded}")
+                print(f"  - Average compute time per round: {avg_compute_time:.2f} s")
 
     def finetuning_training(self, identifier=None):
         fl_report.create_record(identifier, checkout=True)
@@ -113,6 +154,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: Finetuning Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -121,7 +163,7 @@ class FederatedBackdoorExperiment:
                 else:
                     client.handcraft(self.task)
                     client.train(self.task)
-            self.server.aggregate_global_model(self.clients, chosen_ids, None)
+            self.server.aggregate_global_model(self.clients, chosen_ids, None, self.params)
             print('Round {}: FedAvg Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False), notation={'is_distill': False})
             if len(self.malicious_ids) > 0:
@@ -146,6 +188,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: Mitigation Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -155,7 +198,7 @@ class FederatedBackdoorExperiment:
                     client.handcraft(self.task)
                     client.train(self.task)
 
-            self.server.aggregate_global_model(self.clients, chosen_ids, None)
+            self.server.aggregate_global_model(self.clients, chosen_ids, None, self.params)
             prune_order = self.server.collect_conv_ranks(self.task, self.clients, chosen_ids, None)
             if epoch % 5 == 0:
                 self.server.conv_pruning(self.task, orders=prune_order)
@@ -172,6 +215,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: Ensemble Distillation Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -180,7 +224,7 @@ class FederatedBackdoorExperiment:
                 else:
                     client.handcraft(self.task)
                     client.train(self.task)
-            self.server.aggregate_global_model(self.clients, chosen_ids, None)
+            self.server.aggregate_global_model(self.clients, chosen_ids, None, self.params)
             print('Round {}: FedAvg Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False), notation={'is_distill': False})
             fl_report.record_round_vars(self.test(epoch, backdoor=True), notation={'is_distill': False})
@@ -199,6 +243,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: Adaptive Distillation Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -208,7 +253,7 @@ class FederatedBackdoorExperiment:
                     client.handcraft(self.task)
                     client.train(self.task)
             pts = self.server.get_median_scores(self.task, self.clients, chosen_ids)
-            self.server.aggregate_global_model(self.clients, chosen_ids, pts)
+            self.server.aggregate_global_model(self.clients, chosen_ids, pts, self.params)
 
             print('Round {}: FedAvg Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False), notation={'is_distill': False})
@@ -228,6 +273,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: CRFL Distillation Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -237,7 +283,7 @@ class FederatedBackdoorExperiment:
                     client.handcraft(self.task)
                     client.train(self.task)
 
-            self.server.aggregate_global_model(self.clients, chosen_ids, None)
+            self.server.aggregate_global_model(self.clients, chosen_ids, None, self.params)
             # print('Round {}: FedAvg Testing'.format(epoch))
             # fl_report.record_round_vars(self.crfl_test(epoch, backdoor=False), notation={'is_distill': False})
             # fl_report.record_round_vars(self.crfl_test(epoch, backdoor=True), notation={'is_distill': False})
@@ -258,6 +304,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: Deep-Sight Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -281,6 +328,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: Robust LR Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -304,6 +352,7 @@ class FederatedBackdoorExperiment:
 
         for epoch in range(self.params.n_epochs):
             print('Round {}: Bulyan Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -326,7 +375,8 @@ class FederatedBackdoorExperiment:
         fl_report.record_class_vars(self.params)
 
         for epoch in range(self.params.n_epochs):
-            print('Round {}: Backdoor Unlearning Training'.foramt(epoch))
+            print('Round {}: Backdoor Unlearning Training'.format(epoch))
+            self.server.current_round = epoch
             self.server.broadcast_model_weights(self.clients)
             chosen_ids = self.server.select_participated_clients(fixed_mal=[])
             for client in self.clients:
@@ -336,7 +386,7 @@ class FederatedBackdoorExperiment:
                     client.handcraft(self.task)
                     client.train(self.task)
             
-            self.server.aggregate_global_model(self.clients, chosen_ids, None)
+            self.server.aggregate_global_model(self.clients, chosen_ids, None, self.params)
 
     def test(self, epoch, backdoor, another_model=None):
         if self.params.handcraft and self.params.handcraft_trigger and len(self.malicious_ids) > 0 and self.attacks is not None:
@@ -461,7 +511,7 @@ if __name__ == "__main__":
                                                       args.model, params.heterogenuity, params.n_clients)
     experiment = FederatedBackdoorExperiment(params)
 
-    if params.defence == 'fedavg':
+    if params.defence == 'fedavg' or params.defence == 'fedavgcka':
         experiment.fedavg_training(identifier=experiment_name)
     elif params.defence == 'ensemble-distillation':
         experiment.ensemble_distillation_training(identifier=experiment_name)
@@ -479,4 +529,5 @@ if __name__ == "__main__":
         experiment.bulyan_training(identifier=experiment_name)
     elif params.defence == 'deep-sight':
         experiment.deepsight_training(identifier=experiment_name)
+    else:
         print("Defence Name Errors")
