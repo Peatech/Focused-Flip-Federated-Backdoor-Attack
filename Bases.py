@@ -55,7 +55,7 @@ class FederatedBackdoorExperiment:
         handcraft_trigger, distributed = self.params.handcraft_trigger, self.params.distributed_trigger
         # print("handcraft_trigger:", handcraft_trigger, "distributed_trigger:", distributed)
         self.synthesizer = PatternSynthesizer(self.task, handcraft_trigger, distributed, (0, n_mal))
-        self.attacks = Attacks(params, self.synthesizer)
+        self.attacks = Attacks(params, self.synthesizer) if n_mal > 0 else None
 
         self.clients = list()
         malicious_ids = np.random.choice(range(params.n_clients), params.n_malicious_client, replace=False)
@@ -330,7 +330,7 @@ class FederatedBackdoorExperiment:
             self.server.aggregate_global_model(self.clients, chosen_ids, None)
 
     def test(self, epoch, backdoor, another_model=None):
-        if self.params.handcraft and self.params.handcraft_trigger:
+        if self.params.handcraft and self.params.handcraft_trigger and len(self.malicious_ids) > 0 and self.attacks is not None:
             self.attacks.synthesizer.pattern = 0
             for i in self.malicious_ids:
                 self.attacks.synthesizer.pattern += self.clients[i].attacks.synthesizer.pattern
@@ -344,7 +344,7 @@ class FederatedBackdoorExperiment:
         with torch.no_grad():
             for i, data in enumerate(test_loader):
                 batch = self.task.get_batch(i, data)
-                if backdoor:
+                if backdoor and self.attacks is not None:
                     batch = self.attacks.synthesizer.make_backdoor_batch(batch, test=True, attack=True)
 
                 outputs = target_model(batch.inputs)
@@ -360,7 +360,7 @@ class FederatedBackdoorExperiment:
         return round_info
 
     def crfl_test(self, epoch, backdoor, another_model=None):
-        if self.params.handcraft:
+        if self.params.handcraft and len(self.malicious_ids) > 0 and self.attacks is not None:
             self.attacks.synthesizer.pattern = 0
             for i in self.malicious_ids:
                 self.attacks.synthesizer.pattern += self.clients[i].attacks.synthesizer.pattern
@@ -376,7 +376,7 @@ class FederatedBackdoorExperiment:
         with torch.no_grad():
             for i, data in enumerate(test_loader):
                 batch = self.task.get_batch(i, data)
-                if backdoor:
+                if backdoor and self.attacks is not None:
                     batch = self.attacks.synthesizer.make_backdoor_batch(batch, test=True, attack=True)
                 outputs = 0
                 for target_model in smoothed_models:
