@@ -109,8 +109,18 @@ class FederatedBackdoorExperiment:
                 
                 last_telemetry = self.server.fedavgcka_telemetry[-1]
                 print(f"Round {epoch} FedAvgCKA metrics:")
-                print(f"  - Selected: {last_telemetry.get('n_selected', 0)} clients")
-                print(f"  - Excluded: {last_telemetry.get('n_excluded', 0)} clients") 
+                print(f"  - Selected: {last_telemetry.get('n_selected', 0)} clients {last_telemetry.get('selected_clients', [])}")
+                print(f"  - Excluded: {last_telemetry.get('n_excluded', 0)} clients {last_telemetry.get('excluded_clients', [])}")
+                
+                # Show CKA scores for excluded clients (the flagged ones)
+                excluded_clients = last_telemetry.get('excluded_clients', [])
+                cka_scores = last_telemetry.get('cka_scores', {})
+                if excluded_clients and cka_scores:
+                    print(f"  - Flagged clients CKA scores:")
+                    for client_id in excluded_clients:
+                        score = cka_scores.get(client_id, 'N/A')
+                        print(f"    Client {client_id}: {score:.4f}")
+                
                 if 'compute_time_s' in last_telemetry:
                     print(f"  - Compute time: {last_telemetry['compute_time_s']:.2f} s")
             
@@ -140,6 +150,20 @@ class FederatedBackdoorExperiment:
                 print(f"  - Total clients selected: {total_selected}")
                 print(f"  - Total clients excluded: {total_excluded}")
                 print(f"  - Average compute time per round: {avg_compute_time:.2f} s")
+                
+                # Show which clients were most frequently flagged
+                client_exclusion_counts = {}
+                for t in telemetry:
+                    excluded_clients = t.get('excluded_clients', [])
+                    for client_id in excluded_clients:
+                        client_exclusion_counts[client_id] = client_exclusion_counts.get(client_id, 0) + 1
+                
+                if client_exclusion_counts:
+                    print(f"  - Most frequently flagged clients:")
+                    sorted_exclusions = sorted(client_exclusion_counts.items(), key=lambda x: x[1], reverse=True)
+                    for client_id, count in sorted_exclusions[:5]:  # Show top 5
+                        percentage = (count / len(telemetry)) * 100
+                        print(f"    Client {client_id}: flagged {count}/{len(telemetry)} rounds ({percentage:.1f}%)")
 
     def finetuning_training(self, identifier=None):
         fl_report.create_record(identifier, checkout=True)

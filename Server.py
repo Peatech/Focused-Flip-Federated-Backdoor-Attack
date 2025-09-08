@@ -621,7 +621,8 @@ class ServerAvg(Serverbase):
         # Initialize structure from first client
         first_client_weights = next(iter(filtered_weights.values()))
         for layer_name in first_client_weights.keys():
-            averaged_weights[layer_name] = torch.zeros_like(first_client_weights[layer_name])
+            # Convert to float to avoid type casting issues
+            averaged_weights[layer_name] = torch.zeros_like(first_client_weights[layer_name].float())
         
         # Calculate total samples from selected clients
         for client_id in filtered_weights.keys():
@@ -632,7 +633,18 @@ class ServerAvg(Serverbase):
             client_weight = clients[client_id].n_sample / total_samples
             
             for layer_name, layer_weights in weights.items():
-                averaged_weights[layer_name] += client_weight * layer_weights
+                # Convert to float before adding to avoid type casting issues
+                layer_weights_float = layer_weights.float()
+                averaged_weights[layer_name] += client_weight * layer_weights_float
+        
+        # Convert back to original dtypes for layers that need it
+        for layer_name, tensor in averaged_weights.items():
+            original_dtype = first_client_weights[layer_name].dtype
+            if original_dtype != tensor.dtype:
+                if original_dtype in [torch.long, torch.int, torch.int64]:
+                    averaged_weights[layer_name] = tensor.round().long()
+                else:
+                    averaged_weights[layer_name] = tensor.to(original_dtype)
         
         # Update global model
         self.global_model.load_state_dict(averaged_weights)
