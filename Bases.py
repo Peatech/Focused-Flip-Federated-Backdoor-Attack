@@ -479,6 +479,7 @@ class FederatedBackdoorExperiment:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='pass in a parameter')
     parser.add_argument('--defense', type=str, help='defence name')
+    parser.add_argument('--defence', type=str, help='defence name (alternative spelling)')
     parser.add_argument('--config', type=str, help='configs', choices=['cifar', 'imagenet'])
     parser.add_argument('--backdoor', type=str, help='type of backdoor attacks',
                         choices=['neurotoxin', 'ff', 'dba', 'naive', 'baseline'])
@@ -489,8 +490,17 @@ if __name__ == "__main__":
         params = yaml.load(f, Loader=yaml.FullLoader)
 
     params = Params(**params)
-    params.defense = args.defense
+    # Handle both --defense and --defence arguments
+    if args.defense:
+        params.defence = args.defense
+    elif args.defence:
+        params.defence = args.defence
     params.model = args.model
+    
+    # Enable FedAvgCKA if defense is set to 'fedavgcka'
+    if params.defence == 'fedavgcka':
+        params.fedavgcka_enabled = True
+        print(f"FedAvgCKA defense enabled with trim_fraction={params.fedavgcka_trim_fraction}")
     
     
     # print("args backdoor:{}".format(args.backdoor))
@@ -537,4 +547,7 @@ if __name__ == "__main__":
         experiment.bulyan_training(identifier=experiment_name)
     elif params.defence == 'deep-sight':
         experiment.deepsight_training(identifier=experiment_name)
+    elif params.defence == 'fedavgcka':
+        experiment.fedavg_training(identifier=experiment_name)
+    else:
         print("Defence Name Errors")

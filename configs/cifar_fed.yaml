@@ -58,6 +58,15 @@ loss_tasks:
 #  - latent
 #  - latent_fixed
 
+# FedAvgCKA Defense Configuration (enabled when defence=fedavgcka)
+defence: fedavg
+fedavgcka_enabled: false
+fedavgcka_root_dataset_size: 64
+fedavgcka_root_dataset_strategy: "class_balanced"
+fedavgcka_layer_comparison: "penultimate"
+fedavgcka_trim_fraction: 0.3
+fedavgcka_log_scores: true
+
 
 poison_images_test:
   - 389
