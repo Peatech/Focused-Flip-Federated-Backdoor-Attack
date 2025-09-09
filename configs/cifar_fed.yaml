@@ -59,8 +59,8 @@ loss_tasks:
 #  - latent_fixed
 
 # FedAvgCKA Defense Configuration (enabled when defence=fedavgcka)
-defence: fedavg
-fedavgcka_enabled: false
+defence: fedavgcka
+fedavgcka_enabled: true
 fedavgcka_root_dataset_size: 64
 fedavgcka_root_dataset_strategy: "class_balanced"
 fedavgcka_layer_comparison: "multi_layer"
@@ -72,6 +72,15 @@ fedavgcka_multi_layer_weights:
   penultimate: 0.6
   layer3: 0.3
   layer2: 0.1
+
+# =============================================================================
+# FEDERATED LEARNING PARAMETERS (using existing Params fields)
+# =============================================================================
+n_clients: 20                 # Number of clients participating
+local_epoch: 2                # Local training epochs per round
+n_malicious_client: 4         # Number of malicious clients
+chosen_rate: 0.5              # Client selection rate
+fl_weight_scale: 100          # Weight scaling factor
 
 
 poison_images_test:
