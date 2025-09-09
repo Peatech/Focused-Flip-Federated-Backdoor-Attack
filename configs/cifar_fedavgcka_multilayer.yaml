@@ -1,72 +1,44 @@
 task: CifarFed
 synthesizer: Pattern
 
-
 batch_size: 32
 test_batch_size: 100
 lr: 0.001
 momentum: 0.9
 decay: 0.0001
-# n_epochs: 200
-#save_on_epochs: []
 optimizer: SGD
-#log_interval: 100
 
 pretrained: False
-
-#scheduler: False
 
 model_similarity_factor: 0.0
 
 poisoning_proportion: 0.5
 backdoor_label: 8
 
-#resume_model: model_CifarFed_Nov.26_20.32.44_no_attack_fl/model
-
 loss_balance: fixed
 mgda_normalize: none
 
 save_model: True
 norm_clip_factor: 13
-#log: True
-#tb: True
-#report_train_loss: False
-#
-#transform_train: True
-#
-#fl: True
-#fl_no_models: 10
-#fl_local_epochs: 2
-#fl_total_participants: 100
-#fl_eta: 10
-#fl_sample_dirichlet: False
-#fl_dirichlet_alpha: None
-#fl_diff_privacy:  False
-#fl_dp_clip: None
-#fl_dp_noise: None
-#
-#fl_number_of_adversaries: 0
-#fl_weight_scale: 100
-#fl_single_epoch_attack: 1
-
 
 loss_tasks:
   - backdoor
   - normal
-#  - nc_adv
-#  - ewc
-#  - latent
-#  - latent_fixed
 
-# FedAvgCKA Defense Configuration (enabled when defence=fedavgcka)
+# FedAvgCKA Multi-Layer Defense Configuration
 defence: fedavg
 fedavgcka_enabled: false
 fedavgcka_root_dataset_size: 64
 fedavgcka_root_dataset_strategy: "class_balanced"
-fedavgcka_layer_comparison: "multi_layer"
+fedavgcka_layer_comparison: "multi_layer"  # Enable multi-layer mode
 fedavgcka_trim_fraction: 0.5
 fedavgcka_log_scores: true
 
+# Multi-layer weights (can be customized)
+fedavgcka_multi_layer_weights:
+  penultimate: 0.5  # 50% weight to penultimate layer
+  layer3: 0.3       # 30% weight to layer3
+  layer2: 0.2       # 20% weight to layer2
 
 poison_images_test:
   - 389
