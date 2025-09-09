@@ -67,6 +67,12 @@ fedavgcka_layer_comparison: "multi_layer"
 fedavgcka_trim_fraction: 0.5
 fedavgcka_log_scores: true
 
+# Multi-layer weights configuration
+fedavgcka_multi_layer_weights:
+  penultimate: 0.6
+  layer3: 0.3
+  layer2: 0.1
+
 
 poison_images_test:
   - 389

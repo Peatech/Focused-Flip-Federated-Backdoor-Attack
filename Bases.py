@@ -501,6 +501,8 @@ if __name__ == "__main__":
     if params.defence == 'fedavgcka':
         params.fedavgcka_enabled = True
         print(f"FedAvgCKA defense enabled with trim_fraction={params.fedavgcka_trim_fraction}")
+        print(f"FedAvgCKA layer comparison: {params.fedavgcka_layer_comparison}")
+        print(f"FedAvgCKA multi-layer weights: {getattr(params, 'fedavgcka_multi_layer_weights', 'Not set')}")
     
     
     # print("args backdoor:{}".format(args.backdoor))

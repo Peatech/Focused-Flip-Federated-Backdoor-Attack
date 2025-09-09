@@ -346,11 +346,14 @@ def apply_fedavgcka_filter(
         
         if params.fedavgcka_layer_comparison == "multi_layer":
             # Multi-layer comparison
+            logger.info(f"Using multi-layer mode with layers: {layer_names}")
+            logger.info(f"Multi-layer weights: {getattr(params, 'fedavgcka_multi_layer_weights', 'Not set')}")
+            
             combined_scores = compute_multi_layer_cka_scores(
                 client_models, 
                 root_loader, 
                 layer_names,
-                params.fedavgcka_multi_layer_weights,
+                getattr(params, 'fedavgcka_multi_layer_weights', None),
                 device
             )
             
@@ -461,7 +464,11 @@ def compute_multi_layer_cka_scores(
         
         _, _, layer_cka_scores = rank_clients_by_cka(layer_activations, trim_fraction=0.0)
         
-        weight = layer_weights.get(layer_name, 1.0 / len(layer_names))
+        # Handle case where layer_weights might be None or missing keys
+        if layer_weights is None:
+            weight = 1.0 / len(layer_names)
+        else:
+            weight = layer_weights.get(layer_name, 1.0 / len(layer_names))
         
         for client_id in layer_cka_scores:
             if client_id in combined_scores:
