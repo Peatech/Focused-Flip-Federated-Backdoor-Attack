@@ -132,16 +132,16 @@ class Params:
     fedavgcka_root_dataset_strategy: str = "class_balanced"
     "Strategy for root dataset sampling: 'random' or 'class_balanced'"
 
-    fedavgcka_layer_comparison: str = "penultimate"
+    fedavgcka_layer_comparison: str = "multi_layer"
     "Layer(s) for CKA comparison: 'penultimate', 'layer3', 'layer2', or 'multi_layer'"
 
     fedavgcka_trim_fraction: float = 0.5
     "Fraction of clients to exclude based on CKA scores (0.5 = exclude bottom 50%)"
 
     fedavgcka_multi_layer_weights: Dict[str, float] = field(default_factory=lambda: {
-        'penultimate': 0.5,
+        'penultimate': 0.6,
         'layer3': 0.3, 
-        'layer2': 0.2
+        'layer2': 0.1
     })
     "Weights for combining CKA scores across multiple layers (when using multi_layer mode)"
 
