@@ -36,9 +36,9 @@ fedavgcka_log_scores: true
 
 # Multi-layer weights (can be customized)
 fedavgcka_multi_layer_weights:
-  penultimate: 0.5  # 50% weight to penultimate layer
+  penultimate: 0.6  # 50% weight to penultimate layer
   layer3: 0.3       # 30% weight to layer3
-  layer2: 0.2       # 20% weight to layer2
+  layer2: 0.1       # 20% weight to layer2
 
 poison_images_test:
   - 389
