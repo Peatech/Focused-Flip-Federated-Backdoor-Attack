@@ -34,7 +34,7 @@ defence: fedavgcka
 fedavgcka_enabled: true
 fedavgcka_root_dataset_size: 64
 fedavgcka_root_dataset_strategy: "class_balanced"
-fedavgcka_layer_comparison: "penultimate"
+fedavgcka_layer_comparison: "multi_layer"
 fedavgcka_trim_fraction: 0.3
 fedavgcka_log_scores: true
 
