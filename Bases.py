@@ -126,6 +126,47 @@ class FederatedBackdoorExperiment:
                 if 'compute_time_s' in last_telemetry:
                     print(f"  - Compute time: {last_telemetry['compute_time_s']:.2f} s")
             
+            # Log FedSPECTRE-Hybrid metrics if enabled
+            elif (hasattr(self.params, 'fedspectre_enabled') and 
+                  self.params.fedspectre_enabled and 
+                  hasattr(self.server, 'fedspectre_telemetry') and 
+                  self.server.fedspectre_telemetry):
+                
+                last_telemetry = self.server.fedspectre_telemetry[-1]
+                print(f"Round {epoch} FedSPECTRE-Hybrid metrics:")
+                print(f"  - Selected: {last_telemetry.get('n_selected', 0)} clients {last_telemetry.get('selected_clients', [])}")
+                print(f"  - Excluded: {last_telemetry.get('n_excluded', 0)} clients {last_telemetry.get('excluded_clients', [])}")
+                
+                # Show detailed scores for excluded clients (the flagged ones)
+                excluded_clients = last_telemetry.get('excluded_clients', [])
+                anomaly_scores = last_telemetry.get('anomaly_scores', {})
+                cka_scores = last_telemetry.get('cka_scores', {})
+                spectral_scores = last_telemetry.get('spectral_scores', {})
+                stability_scores = last_telemetry.get('stability_scores', {})
+                
+                if excluded_clients and anomaly_scores:
+                    print(f"  - Flagged clients anomaly scores:")
+                    for client_id in excluded_clients:
+                        if client_id in anomaly_scores:
+                            scores = anomaly_scores[client_id]
+                            print(f"    Client {client_id}: Total={scores.get('total', 0.0):.4f}, CKA={scores.get('cka', 0.0):.4f}, Spectral={scores.get('spectral', 0.0):.4f}, Stability={scores.get('stability', 0.0):.4f}")
+                
+                # Show component breakdown
+                if cka_scores or spectral_scores or stability_scores:
+                    print(f"  - Component scores for excluded clients:")
+                    for client_id in excluded_clients:
+                        cka = cka_scores.get(client_id, 0.0)
+                        spectral = spectral_scores.get(client_id, 0.0)
+                        stability = stability_scores.get(client_id, 0.0)
+                        print(f"    Client {client_id}: CKA={cka:.4f}, Spectral={spectral:.4f}, Stability={stability:.4f}")
+                
+                if 'compute_time_s' in last_telemetry:
+                    print(f"  - Compute time: {last_telemetry['compute_time_s']:.2f} s")
+                if 'target_class' in last_telemetry:
+                    print(f"  - Target class: {last_telemetry['target_class']}")
+                if 'alpha' in last_telemetry:
+                    print(f"  - Weights: α={last_telemetry['alpha']:.1f}, β={last_telemetry['beta']:.1f}, γ={last_telemetry['gamma']:.1f}")
+            
             print('Round {}: FedAvg Testing'.format(epoch))
             fl_report.record_round_vars(self.test(epoch, backdoor=False))
             if len(self.malicious_ids) > 0:

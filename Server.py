@@ -82,6 +82,7 @@ class ServerAvg(Serverbase):
         # FedAvgCKA initialization
         self.root_dataset_loader = None
         self.fedavgcka_telemetry = []
+        self.fedspectre_telemetry = []
         self.current_round = -1
 
     def select_participated_clients(self, fixed_mal):
@@ -144,6 +145,7 @@ class ServerAvg(Serverbase):
         # Check if FedSPECTRE-Hybrid is enabled
         elif params and hasattr(params, 'fedspectre_enabled') and params.fedspectre_enabled:
             logger.info("*** Using FedSPECTRE-Hybrid aggregation ***")
+            logger.info(f"FedSPECTRE-Hybrid params: enabled={params.fedspectre_enabled}, trim_fraction={getattr(params, 'fedspectre_trim_fraction', 'N/A')}")
             return self.fedspectre_hybrid_aggregate_global_model(clients, chosen_ids, pts, params)
         else:
             logger.info("Using standard FedAvg aggregation")
@@ -693,7 +695,8 @@ class ServerAvg(Serverbase):
         """
         if not params.fedspectre_enabled or self.root_dataset_loader is None:
             # Fallback to standard aggregation
-            logger.warning("FedSPECTRE-Hybrid not properly initialized, falling back to standard aggregation")
+            logger.warning(f"FedSPECTRE-Hybrid not properly initialized: enabled={params.fedspectre_enabled}, root_loader={self.root_dataset_loader is not None}")
+            logger.warning("Falling back to standard aggregation")
             return self._standard_aggregate_global_model(clients, chosen_ids, pts)
         
         try:
@@ -720,8 +723,6 @@ class ServerAvg(Serverbase):
             # Store telemetry for analysis
             telemetry['round'] = getattr(self, 'current_round', -1)
             telemetry['original_clients'] = chosen_ids
-            if not hasattr(self, 'fedspectre_telemetry'):
-                self.fedspectre_telemetry = []
             self.fedspectre_telemetry.append(telemetry)
             
             if not filtered_weights:

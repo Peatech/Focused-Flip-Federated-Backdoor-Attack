@@ -560,21 +560,30 @@ class FedSPECTREHybrid:
             # 6. Select clients based on anomaly scores
             logger.info("Selecting clients...")
             selected_clients = self._select_clients(anomaly_scores, client_weights)
+            excluded_clients = [cid for cid in client_weights.keys() if cid not in selected_clients]
             
             # 7. Apply size-weighted aggregation
             filtered_weights = self._apply_size_weighted_aggregation(selected_clients, client_weights)
             
             compute_time = time.time() - start_time
             
+            # Create detailed telemetry similar to FedAvgCKA
             telemetry = {
                 "selected_clients": selected_clients,
-                "excluded_clients": [cid for cid in client_weights.keys() if cid not in selected_clients],
+                "excluded_clients": excluded_clients,
                 "anomaly_scores": anomaly_scores,
+                "cka_scores": self._extract_component_scores(anomaly_scores, 'cka'),
+                "spectral_scores": self._extract_component_scores(anomaly_scores, 'spectral'),
+                "stability_scores": self._extract_component_scores(anomaly_scores, 'stability'),
                 "target_class": target_class,
                 "class_stats": {k: {"mu_shape": v[0].shape, "W_shape": v[1].shape} for k, v in class_stats.items()},
                 "compute_time_s": compute_time,
                 "n_selected": len(selected_clients),
-                "n_excluded": len(client_weights) - len(selected_clients)
+                "n_excluded": len(excluded_clients),
+                "trim_fraction": self.trim_fraction,
+                "alpha": self.alpha,
+                "beta": self.beta,
+                "gamma": self.gamma
             }
             
             logger.info(f"FedSPECTRE-Hybrid complete: {len(selected_clients)}/{len(client_weights)} clients selected")
@@ -614,8 +623,8 @@ class FedSPECTREHybrid:
         data_loader: DataLoader
     ) -> Dict[int, np.ndarray]:
         """Group representations by class."""
-        # Simplified implementation - in practice would track class labels
-        # For now, treat as single class
+        # For now, treat as single class since we don't have class labels in the data loader
+        # In a full implementation, we would need to track class labels during extraction
         return {0: representations}
     
     def _compute_class_statistics(
@@ -699,8 +708,8 @@ class FedSPECTREHybrid:
         target_class: int,
         client_models: Dict[int, nn.Module],
         root_loader: DataLoader
-    ) -> Dict[int, float]:
-        """Compute anomaly scores for all clients."""
+    ) -> Dict[int, Dict[str, float]]:
+        """Compute anomaly scores for all clients with component breakdown."""
         anomaly_scores = {}
         
         # Compute CKA scores
@@ -718,7 +727,7 @@ class FedSPECTREHybrid:
             client_models, root_loader, class_stats, self.extractor
         )
         
-        # Combine scores
+        # Combine scores and store component breakdown
         for client_id in client_representations.keys():
             cka = cka_scores.get(client_id, 0.0)
             spectral = spectral_scores.get(client_id, 0.0)
@@ -729,21 +738,26 @@ class FedSPECTREHybrid:
                       self.beta * (1 - stability) + 
                       self.gamma * spectral)
             
-            anomaly_scores[client_id] = anomaly
+            anomaly_scores[client_id] = {
+                'total': anomaly,
+                'cka': cka,
+                'spectral': spectral,
+                'stability': stability
+            }
             
         return anomaly_scores
     
     def _select_clients(
         self, 
-        anomaly_scores: Dict[int, float], 
+        anomaly_scores: Dict[int, Dict[str, float]], 
         client_weights: Dict[int, Any]
     ) -> List[int]:
         """Select clients based on anomaly scores."""
         if not anomaly_scores:
             return list(client_weights.keys())
             
-        # Sort by anomaly score (ascending = least anomalous first)
-        sorted_clients = sorted(anomaly_scores.items(), key=lambda x: x[1])
+        # Sort by total anomaly score (ascending = least anomalous first)
+        sorted_clients = sorted(anomaly_scores.items(), key=lambda x: x[1]['total'])
         
         # Select top fraction
         n_select = int((1 - self.trim_fraction) * len(sorted_clients))
@@ -761,6 +775,10 @@ class FedSPECTREHybrid:
         # In practice, would need access to client sample counts
         # For now, return selected weights
         return {client_id: client_weights[client_id] for client_id in selected_clients}
+    
+    def _extract_component_scores(self, anomaly_scores: Dict[int, Dict[str, float]], component: str) -> Dict[int, float]:
+        """Extract specific component scores from anomaly scores."""
+        return {client_id: scores.get(component, 0.0) for client_id, scores in anomaly_scores.items()}
 
 
 def apply_fedspectre_hybrid_filter(
@@ -775,7 +793,10 @@ def apply_fedspectre_hybrid_filter(
     
     This is the main entry point for integration with the server.
     """
+    logger.info(f"FedSPECTRE-Hybrid filter called with {len(client_models)} client models")
+    
     if not client_models:
+        logger.error("No client models provided to FedSPECTRE-Hybrid filter")
         return {}, {"error": "No client models provided"}
     
     # Initialize defense
@@ -788,5 +809,11 @@ def apply_fedspectre_hybrid_filter(
         trim_fraction=getattr(params, 'fedspectre_trim_fraction', 0.5)
     )
     
+    logger.info("FedSPECTRE-Hybrid defense initialized, applying defense...")
+    
     # Apply defense
-    return defense.apply_defense(client_models, client_weights, root_loader, params)
+    result = defense.apply_defense(client_models, client_weights, root_loader, params)
+    
+    logger.info(f"FedSPECTRE-Hybrid defense completed, returning {len(result[0])} selected clients")
+    
+    return result

@@ -7,7 +7,7 @@ test_batch_size: 100
 lr: 0.001
 momentum: 0.9
 decay: 0.0001
-# n_epochs: 200
+n_epochs: 2
 #save_on_epochs: []
 optimizer: SGD
 #log_interval: 100
@@ -76,9 +76,9 @@ fedavgcka_multi_layer_weights:
 # =============================================================================
 # FEDERATED LEARNING PARAMETERS (using existing Params fields)
 # =============================================================================
-n_clients: 20                 # Number of clients participating
-local_epoch: 2                # Local training epochs per round
-n_malicious_client: 4         # Number of malicious clients
+n_clients: 10                 # Number of clients participating (reduced for testing)
+local_epoch: 1                # Local training epochs per round (reduced for testing)
+n_malicious_client: 2         # Number of malicious clients (reduced for testing)
 chosen_rate: 0.5              # Client selection rate
 fl_weight_scale: 100          # Weight scaling factor
 
