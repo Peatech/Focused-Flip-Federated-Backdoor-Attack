@@ -86,10 +86,10 @@ fedspectre_log_scores: true            # Enable detailed logging
 # =============================================================================
 # FEDERATED LEARNING PARAMETERS (using existing Params fields)
 # =============================================================================
-n_clients: 100                # Number of clients participating
+n_clients: 20                # Number of clients participating
 local_epoch: 2                # Local training epochs per round
-n_malicious_client: 10        # Number of malicious clients
-chosen_rate: 0.1              # Client selection rate (10 out of 100 clients per round)
+n_malicious_client: 4        # Number of malicious clients
+chosen_rate: 0.5              # Client selection rate (10 out of 100 clients per round)
 fl_weight_scale: 100          # Weight scaling factor
 
 
