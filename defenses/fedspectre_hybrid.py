@@ -488,9 +488,9 @@ class FedSPECTREHybrid:
         self,
         device: torch.device,
         rank: int = 128,
-        alpha: float = 0.4,
-        beta: float = 0.3,
-        gamma: float = 0.3,
+        alpha: float = 0.7,
+        beta: float = 0.1,
+        gamma: float = 0.2,
         trim_fraction: float = 0.5
     ):
         self.device = device
