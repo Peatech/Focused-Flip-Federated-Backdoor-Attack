@@ -18,6 +18,7 @@ from metrics.test_loss_metric import TestLossMetric
 from torch.nn import Module
 from Attacks import Attacks, get_conv_weight_names, get_accuracy
 from defenses.fedavgcka import create_root_dataset, apply_fedavgcka_filter
+from defenses.fedspectre_hybrid import apply_fedspectre_hybrid_filter
 # Type Definition
 from tqdm import tqdm
 # from torch.utils.tensorboard import SummaryWriter
@@ -139,6 +140,9 @@ class ServerAvg(Serverbase):
         # Check if FedAvgCKA is enabled
         if params and hasattr(params, 'fedavgcka_enabled') and params.fedavgcka_enabled:
             return self.fedavgcka_aggregate_global_model(clients, chosen_ids, pts, params)
+        # Check if FedSPECTRE-Hybrid is enabled
+        elif params and hasattr(params, 'fedspectre_enabled') and params.fedspectre_enabled:
+            return self.fedspectre_hybrid_aggregate_global_model(clients, chosen_ids, pts, params)
         else:
             return self._standard_aggregate_global_model(clients, chosen_ids, pts)
     
@@ -522,27 +526,42 @@ class ServerAvg(Serverbase):
         Note:
             Should be called once during server initialization.
         """
-        if not params.fedavgcka_enabled:
+        if not params.fedavgcka_enabled and not params.fedspectre_enabled:
             return
             
         try:
-            logger.info("Initializing FedAvgCKA defense...")
+            if params.fedavgcka_enabled:
+                logger.info("Initializing FedAvgCKA defense...")
+            elif params.fedspectre_enabled:
+                logger.info("Initializing FedSPECTRE-Hybrid defense...")
             
             # Create root dataset for activation extraction
+            # Use FedAvgCKA parameters for root dataset (both defenses need it)
+            root_dataset_size = getattr(params, 'fedavgcka_root_dataset_size', 64)
+            root_dataset_strategy = getattr(params, 'fedavgcka_root_dataset_strategy', 'class_balanced')
+            
             self.root_dataset_loader = create_root_dataset(
                 task=task,
-                size=params.fedavgcka_root_dataset_size,
-                strategy=params.fedavgcka_root_dataset_strategy,
+                size=root_dataset_size,
+                strategy=root_dataset_strategy,
                 device=self.device
             )
             
-            logger.info(f"FedAvgCKA initialized with root dataset of size {params.fedavgcka_root_dataset_size}")
-            logger.info(f"Root dataset strategy: {params.fedavgcka_root_dataset_strategy}")
-            logger.info(f"Layer comparison mode: {params.fedavgcka_layer_comparison}")
+            if params.fedavgcka_enabled:
+                logger.info(f"FedAvgCKA initialized with root dataset of size {root_dataset_size}")
+                logger.info(f"Root dataset strategy: {root_dataset_strategy}")
+                logger.info(f"Layer comparison mode: {params.fedavgcka_layer_comparison}")
+            elif params.fedspectre_enabled:
+                logger.info(f"FedSPECTRE-Hybrid initialized with root dataset of size {root_dataset_size}")
+                logger.info(f"Root dataset strategy: {root_dataset_strategy}")
+                logger.info(f"Rank: {params.fedspectre_rank}, Alpha: {params.fedspectre_alpha}, Beta: {params.fedspectre_beta}, Gamma: {params.fedspectre_gamma}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize FedAvgCKA: {e}")
-            params.fedavgcka_enabled = False  # Disable on failure
+            logger.error(f"Failed to initialize defense: {e}")
+            if params.fedavgcka_enabled:
+                params.fedavgcka_enabled = False
+            if params.fedspectre_enabled:
+                params.fedspectre_enabled = False
             
     def fedavgcka_aggregate_global_model(self, clients: client_group, chosen_ids, pts, params):
         """
@@ -648,6 +667,79 @@ class ServerAvg(Serverbase):
         
         # Update global model
         self.global_model.load_state_dict(averaged_weights)
+    
+    def fedspectre_hybrid_aggregate_global_model(self, clients: client_group, chosen_ids, pts, params):
+        """
+        Aggregate global model using FedSPECTRE-Hybrid pre-filtering.
+        
+        Args:
+            clients: List of Client objects
+            chosen_ids: List of client IDs selected for this round
+            pts: Points/weights for clients (unused in FedSPECTRE-Hybrid)
+            params: Params object with FedSPECTRE-Hybrid configuration
+            
+        Note:
+            This is a drop-in replacement for aggregate_global_model()
+            when FedSPECTRE-Hybrid defense is enabled.
+        """
+        if not params.fedspectre_enabled or self.root_dataset_loader is None:
+            # Fallback to standard aggregation
+            logger.warning("FedSPECTRE-Hybrid not properly initialized, falling back to standard aggregation")
+            return self._standard_aggregate_global_model(clients, chosen_ids, pts)
+        
+        try:
+            # Collect client models and weights
+            client_models = {}
+            client_weights = {}
+            
+            for client_id in chosen_ids:
+                client = clients[client_id]
+                client_models[client_id] = copy.deepcopy(client.local_model)
+                client_weights[client_id] = client.local_model.state_dict()
+            
+            logger.info(f"Applying FedSPECTRE-Hybrid filtering to {len(chosen_ids)} clients...")
+            
+            # Apply FedSPECTRE-Hybrid filtering
+            filtered_weights, telemetry = apply_fedspectre_hybrid_filter(
+                client_models=client_models,
+                client_weights=client_weights,
+                params=params,
+                root_loader=self.root_dataset_loader,
+                device=self.device
+            )
+            
+            # Store telemetry for analysis
+            telemetry['round'] = getattr(self, 'current_round', -1)
+            telemetry['original_clients'] = chosen_ids
+            if not hasattr(self, 'fedspectre_telemetry'):
+                self.fedspectre_telemetry = []
+            self.fedspectre_telemetry.append(telemetry)
+            
+            if not filtered_weights:
+                logger.error("FedSPECTRE-Hybrid filtering resulted in no clients! Falling back to original.")
+                filtered_weights = client_weights
+            
+            # Perform FedAvg aggregation on filtered weights
+            self._aggregate_filtered_weights(filtered_weights, clients)
+            
+            logger.info(f"FedSPECTRE-Hybrid aggregation complete. Used {len(filtered_weights)}/{len(chosen_ids)} clients.")
+            
+        except Exception as e:
+            logger.error(f"FedSPECTRE-Hybrid aggregation failed: {e}. Falling back to standard aggregation.")
+            self._standard_aggregate_global_model(clients, chosen_ids, pts)
+    
+    def get_fedspectre_telemetry(self) -> List[Dict[str, Any]]:
+        """
+        Get collected FedSPECTRE-Hybrid telemetry data.
+        
+        Returns:
+            List of telemetry dictionaries from each round
+        """
+        return getattr(self, 'fedspectre_telemetry', []).copy()
+        
+    def reset_fedspectre_telemetry(self):
+        """Reset collected telemetry data."""
+        self.fedspectre_telemetry = []
         
     def get_fedavgcka_telemetry(self) -> List[Dict[str, Any]]:
         """

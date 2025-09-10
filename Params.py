@@ -151,6 +151,31 @@ class Params:
     fedavgcka_log_scores: bool = True
     "Whether to log detailed CKA scores and client selections"
 
+    # FedSPECTRE-Hybrid Defense Configuration
+    fedspectre_enabled: bool = False
+    "Enable FedSPECTRE-Hybrid pre-aggregation defense"
+
+    fedspectre_rank: int = 128
+    "Rank for low-rank projection in robust statistics (default 128)"
+
+    fedspectre_alpha: float = 0.4
+    "Weight for CKA component in anomaly score (default 0.4)"
+
+    fedspectre_beta: float = 0.3
+    "Weight for augmentation stability component (default 0.3)"
+
+    fedspectre_gamma: float = 0.3
+    "Weight for spectral projection component (default 0.3)"
+
+    fedspectre_trim_fraction: float = 0.5
+    "Fraction of clients to exclude based on anomaly scores (default 0.5)"
+
+    fedspectre_trim_fraction_cov: float = 0.05
+    "Fraction to trim before covariance estimation (default 0.05)"
+
+    fedspectre_log_scores: bool = True
+    "Whether to log detailed anomaly scores and client selections"
+
     def __post_init__(self):
         # enable logging anyways when saving statistics
         self.running_losses = defaultdict(list)
@@ -160,4 +185,8 @@ class Params:
         # Auto-enable FedAvgCKA if defense is set to 'fedavgcka'
         if self.defence == 'fedavgcka':
             self.fedavgcka_enabled = True
+            
+        # Auto-enable FedSPECTRE-Hybrid if defense is set to 'fedspectre'
+        if self.defence == 'fedspectre':
+            self.fedspectre_enabled = True
 
