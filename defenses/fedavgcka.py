@@ -18,6 +18,8 @@ import logging
 import copy
 import time
 
+# Configure logging to show INFO level messages
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -448,7 +450,7 @@ def compute_multi_layer_cka_scores(
     
     for layer_name in layer_names:
         logger.info(f"Processing layer: {layer_name}")
-        
+        logger.info(f"Extracting activations from layer: {layer_name}")
         layer_activations = {}
         for client_id, model in client_models.items():
             try:
@@ -462,6 +464,7 @@ def compute_multi_layer_cka_scores(
             logger.warning(f"Too few clients ({len(layer_activations)}) have valid activations for {layer_name}, skipping")
             continue
         
+        logger.info(f"Computing pairwise CKA scores for {len(layer_activations)} clients...")
         _, _, layer_cka_scores = rank_clients_by_cka(layer_activations, trim_fraction=0.0)
         
         # Handle case where layer_weights might be None or missing keys

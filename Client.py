@@ -283,7 +283,8 @@ class Client(Clientbase):
             batch_losses = list()
             normal_losses = list()
             # Record Training Time
-            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             start = time.time()
             for i, data in enumerate(self.train_loader):
                 batch = task.get_batch(i, data)
@@ -300,7 +301,8 @@ class Client(Clientbase):
                 self.optimizer.step()
                 batch_losses.append(loss.item())
             # Test time
-            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             end = time.time()
             train_time = end - start
             print("client:{} epoch:{} mal:{} loss:{} time:{}".format(self.client_id, epoch, self.is_malicious,
@@ -328,7 +330,8 @@ class Client(Clientbase):
             batch_losses = list()
             normal_losses = list()
             # Record Training Time
-            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             start = time.time()
             for i, data in enumerate(self.train_loader):
                 batch = task.get_batch(i, data)
@@ -342,7 +345,8 @@ class Client(Clientbase):
                 self.optimizer.step()
                 batch_losses.append(loss.item())
             # Test time
-            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             end = time.time()
             train_time = end - start
             print("client:{} epoch:{} mal:{} loss:{} time:{}".format(self.client_id, epoch, self.is_malicious,
