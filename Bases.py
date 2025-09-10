@@ -499,20 +499,24 @@ if __name__ == "__main__":
         params.defence = args.defence
     params.model = args.model
     
-    # Enable FedAvgCKA if defense is set to 'fedavgcka'
+    # Enable defenses based on defence parameter (ensure only one is enabled)
     if params.defence == 'fedavgcka':
         params.fedavgcka_enabled = True
+        params.fedspectre_enabled = False
         print(f"FedAvgCKA defense enabled with trim_fraction={params.fedavgcka_trim_fraction}")
         print(f"FedAvgCKA layer comparison: {params.fedavgcka_layer_comparison}")
         print(f"FedAvgCKA multi-layer weights: {getattr(params, 'fedavgcka_multi_layer_weights', 'Not set')}")
-    
-    # Enable FedSPECTRE-Hybrid if defense is set to 'fedspectre'
     elif params.defence == 'fedspectre':
         params.fedspectre_enabled = True
+        params.fedavgcka_enabled = False
         print(f"FedSPECTRE-Hybrid defense enabled with trim_fraction={params.fedspectre_trim_fraction}")
         print(f"FedSPECTRE-Hybrid rank: {params.fedspectre_rank}")
         print(f"FedSPECTRE-Hybrid weights - Alpha: {params.fedspectre_alpha}, Beta: {params.fedspectre_beta}, Gamma: {params.fedspectre_gamma}")
         print(f"FedSPECTRE-Hybrid covariance trim: {params.fedspectre_trim_fraction_cov}")
+    else:
+        # For other defenses, disable both
+        params.fedavgcka_enabled = False
+        params.fedspectre_enabled = False
     
     
     # print("args backdoor:{}".format(args.backdoor))

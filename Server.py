@@ -139,11 +139,14 @@ class ServerAvg(Serverbase):
         
         # Check if FedAvgCKA is enabled
         if params and hasattr(params, 'fedavgcka_enabled') and params.fedavgcka_enabled:
+            logger.info("Using FedAvgCKA aggregation")
             return self.fedavgcka_aggregate_global_model(clients, chosen_ids, pts, params)
         # Check if FedSPECTRE-Hybrid is enabled
         elif params and hasattr(params, 'fedspectre_enabled') and params.fedspectre_enabled:
+            logger.info("*** Using FedSPECTRE-Hybrid aggregation ***")
             return self.fedspectre_hybrid_aggregate_global_model(clients, chosen_ids, pts, params)
         else:
+            logger.info("Using standard FedAvg aggregation")
             return self._standard_aggregate_global_model(clients, chosen_ids, pts)
     
     def _standard_aggregate_global_model(self, clients: client_group, chosen_ids, pts):
@@ -534,6 +537,7 @@ class ServerAvg(Serverbase):
                 logger.info("Initializing FedAvgCKA defense...")
             elif params.fedspectre_enabled:
                 logger.info("Initializing FedSPECTRE-Hybrid defense...")
+                logger.info("*** USING FEDSPECTRE-HYBRID DEFENSE ***")
             else:
                 logger.info("Initializing defense root dataset...")
             

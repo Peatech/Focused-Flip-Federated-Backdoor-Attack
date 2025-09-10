@@ -182,11 +182,15 @@ class Params:
         self.running_scales = defaultdict(list)
         self.timing_data = defaultdict(list)
         
-        # Auto-enable FedAvgCKA if defense is set to 'fedavgcka'
+        # Auto-enable defenses based on defence parameter (ensure only one is enabled)
         if self.defence == 'fedavgcka':
             self.fedavgcka_enabled = True
-            
-        # Auto-enable FedSPECTRE-Hybrid if defense is set to 'fedspectre'
-        if self.defence == 'fedspectre':
+            self.fedspectre_enabled = False
+        elif self.defence == 'fedspectre':
             self.fedspectre_enabled = True
+            self.fedavgcka_enabled = False
+        else:
+            # For other defenses, disable both
+            self.fedavgcka_enabled = False
+            self.fedspectre_enabled = False
 
