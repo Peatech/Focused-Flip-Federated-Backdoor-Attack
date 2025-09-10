@@ -563,6 +563,9 @@ class ServerAvg(Serverbase):
             logger.warning("FedAvgCKA not properly initialized, falling back to standard aggregation")
             return self._standard_aggregate_global_model(clients, chosen_ids, pts)
         
+        # Update current round
+        self.current_round += 1
+        
         try:
             # Collect client models and weights
             client_models = {}
