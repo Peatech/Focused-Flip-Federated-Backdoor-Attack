@@ -73,6 +73,16 @@ fedavgcka_multi_layer_weights:
   layer3: 0.3
   layer2: 0.1
 
+# FedSPECTRE-Hybrid Defense Configuration (enabled when defence=fedspectre)
+fedspectre_enabled: false
+fedspectre_rank: 64                    # Reduced for faster computation
+fedspectre_alpha: 0.6                  # Increased CKA weight (most reliable)
+fedspectre_beta: 0.1                   # Reduced stability weight (not working well)
+fedspectre_gamma: 0.3                  # Spectral weight
+fedspectre_trim_fraction: 0.5          # Same as FedAvgCKA
+fedspectre_trim_fraction_cov: 0.1      # Increased covariance trimming
+fedspectre_log_scores: true            # Enable detailed logging
+
 # =============================================================================
 # FEDERATED LEARNING PARAMETERS (using existing Params fields)
 # =============================================================================

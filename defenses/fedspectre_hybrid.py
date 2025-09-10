@@ -727,16 +727,39 @@ class FedSPECTREHybrid:
             client_models, root_loader, class_stats, self.extractor
         )
         
+        # Normalize scores for better combination
+        def normalize_scores(scores_dict):
+            if not scores_dict:
+                return scores_dict
+            values = list(scores_dict.values())
+            if len(set(values)) <= 1:  # All values are the same
+                return {k: 0.5 for k in scores_dict.keys()}
+            min_val, max_val = min(values), max(values)
+            if max_val == min_val:
+                return {k: 0.5 for k in scores_dict.keys()}
+            return {k: (v - min_val) / (max_val - min_val) for k, v in scores_dict.items()}
+        
+        # Normalize all score components
+        norm_cka = normalize_scores(cka_scores)
+        norm_spectral = normalize_scores(spectral_scores)
+        norm_stability = normalize_scores(stability_scores)
+        
         # Combine scores and store component breakdown
         for client_id in client_representations.keys():
             cka = cka_scores.get(client_id, 0.0)
-            spectral = spectral_scores.get(client_id, 0.0)
+            spectral = spectral_scores.get(client_id, 0.0) 
             stability = stability_scores.get(client_id, 0.0)
             
+            # Normalized scores for anomaly calculation
+            norm_cka_val = norm_cka.get(client_id, 0.5)
+            norm_spectral_val = norm_spectral.get(client_id, 0.5)
+            norm_stability_val = norm_stability.get(client_id, 0.5)
+            
             # Anomaly score: higher is more anomalous
-            anomaly = (self.alpha * (1 - cka) + 
-                      self.beta * (1 - stability) + 
-                      self.gamma * spectral)
+            # Use CKA dissimilarity (1-cka), high spectral, and instability (1-stability)
+            anomaly = (self.alpha * (1 - norm_cka_val) + 
+                      self.beta * (1 - norm_stability_val) + 
+                      self.gamma * norm_spectral_val)
             
             anomaly_scores[client_id] = {
                 'total': anomaly,
@@ -752,18 +775,49 @@ class FedSPECTREHybrid:
         anomaly_scores: Dict[int, Dict[str, float]], 
         client_weights: Dict[int, Any]
     ) -> List[int]:
-        """Select clients based on anomaly scores."""
+        """Select clients based on anomaly scores with improved outlier detection."""
         if not anomaly_scores:
             return list(client_weights.keys())
-            
-        # Sort by total anomaly score (ascending = least anomalous first)
-        sorted_clients = sorted(anomaly_scores.items(), key=lambda x: x[1]['total'])
         
-        # Select top fraction
-        n_select = int((1 - self.trim_fraction) * len(sorted_clients))
-        n_select = max(1, n_select)  # Always select at least one
+        # Extract total anomaly scores
+        total_scores = {cid: scores['total'] for cid, scores in anomaly_scores.items()}
         
-        selected = [client_id for client_id, _ in sorted_clients[:n_select]]
+        # Use median-based outlier detection (more robust than simple sorting)
+        scores_array = np.array(list(total_scores.values()))
+        median_score = np.median(scores_array)
+        mad = np.median(np.abs(scores_array - median_score))
+        
+        # Modified Z-score for outlier detection
+        threshold_multiplier = 2.5  # Adjustable sensitivity
+        if mad == 0:
+            # If MAD is 0, use standard deviation
+            std_score = np.std(scores_array)
+            outlier_threshold = median_score + threshold_multiplier * std_score
+        else:
+            outlier_threshold = median_score + threshold_multiplier * mad
+        
+        # Select clients with scores below threshold (less anomalous)
+        selected = []
+        excluded = []
+        
+        for client_id, score in total_scores.items():
+            if score < outlier_threshold:
+                selected.append(client_id)
+            else:
+                excluded.append(client_id)
+        
+        # Ensure we select at least 1 client and not more than (1-trim_fraction)
+        max_select = max(1, int((1 - self.trim_fraction) * len(total_scores)))
+        
+        if len(selected) > max_select:
+            # Sort selected by score and take the best ones
+            selected.sort(key=lambda x: total_scores[x])
+            selected = selected[:max_select]
+        elif len(selected) == 0:
+            # If no clients pass threshold, select the best one
+            best_client = min(total_scores.items(), key=lambda x: x[1])[0]
+            selected = [best_client]
+        
         return selected
     
     def _apply_size_weighted_aggregation(
