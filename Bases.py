@@ -52,9 +52,11 @@ class FederatedBackdoorExperiment:
                                 chosen_rate=params.chosen_rate,
                                 dataset=server_dataset, batch_size=params.batch_size, device=params.device)
 
-        # Initialize FedAvgCKA if enabled
+        # Initialize FedAvgCKA or FedSPECTRE-Hybrid if enabled
         if hasattr(params, 'fedavgcka_enabled') and params.fedavgcka_enabled:
             self.server.initialize_fedavgcka(self.task, params)
+        elif hasattr(params, 'fedspectre_enabled') and params.fedspectre_enabled:
+            self.server.initialize_fedavgcka(self.task, params)  # Uses same initialization method
 
         handcraft_trigger, distributed = self.params.handcraft_trigger, self.params.distributed_trigger
         # print("handcraft_trigger:", handcraft_trigger, "distributed_trigger:", distributed)
@@ -504,6 +506,14 @@ if __name__ == "__main__":
         print(f"FedAvgCKA layer comparison: {params.fedavgcka_layer_comparison}")
         print(f"FedAvgCKA multi-layer weights: {getattr(params, 'fedavgcka_multi_layer_weights', 'Not set')}")
     
+    # Enable FedSPECTRE-Hybrid if defense is set to 'fedspectre'
+    elif params.defence == 'fedspectre':
+        params.fedspectre_enabled = True
+        print(f"FedSPECTRE-Hybrid defense enabled with trim_fraction={params.fedspectre_trim_fraction}")
+        print(f"FedSPECTRE-Hybrid rank: {params.fedspectre_rank}")
+        print(f"FedSPECTRE-Hybrid weights - Alpha: {params.fedspectre_alpha}, Beta: {params.fedspectre_beta}, Gamma: {params.fedspectre_gamma}")
+        print(f"FedSPECTRE-Hybrid covariance trim: {params.fedspectre_trim_fraction_cov}")
+    
     
     # print("args backdoor:{}".format(args.backdoor))
     params.backdoor = args.backdoor
@@ -527,7 +537,8 @@ if __name__ == "__main__":
         print("Not implemented defenses")
 
     fl_report = FLReport()
-    experiment_name = "{}/{}_{}_{}_{}_h{}_c{}".format(params.resultdir, args.backdoor, args.defense, args.config,
+    defense_name = args.defense if args.defense else args.defence
+    experiment_name = "{}/{}_{}_{}_{}_h{}_c{}".format(params.resultdir, args.backdoor, defense_name, args.config,
                                                       args.model, params.heterogenuity, params.n_clients)
     experiment = FederatedBackdoorExperiment(params)
 
@@ -551,5 +562,7 @@ if __name__ == "__main__":
         experiment.deepsight_training(identifier=experiment_name)
     elif params.defence == 'fedavgcka':
         experiment.fedavg_training(identifier=experiment_name)
+    elif params.defence == 'fedspectre':
+        experiment.fedavg_training(identifier=experiment_name)  # Uses same training loop as FedAvg/FedAvgCKA
     else:
         print("Defence Name Errors")

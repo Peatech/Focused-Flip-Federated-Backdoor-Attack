@@ -534,6 +534,8 @@ class ServerAvg(Serverbase):
                 logger.info("Initializing FedAvgCKA defense...")
             elif params.fedspectre_enabled:
                 logger.info("Initializing FedSPECTRE-Hybrid defense...")
+            else:
+                logger.info("Initializing defense root dataset...")
             
             # Create root dataset for activation extraction
             # Use FedAvgCKA parameters for root dataset (both defenses need it)
