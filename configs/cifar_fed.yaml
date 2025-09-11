@@ -78,9 +78,9 @@ fedspectre_enabled: false
 fedspectre_rank: 64                    # Reduced for faster computation
 fedspectre_alpha: 0.8                  # Increased CKA weight (most reliable)
 fedspectre_beta: 0.0                   # Reduced stability weight (not working well)
-fedspectre_gamma: 0.6                  # Spectral weight
+fedspectre_gamma: 0.2                  # Spectral weight
 fedspectre_trim_fraction: 0.5          # Same as FedAvgCKA
-fedspectre_trim_fraction_cov: 0.1      # Increased covariance trimming
+fedspectre_trim_fraction_cov: 0.04      # Increased covariance trimming
 fedspectre_log_scores: true            # Enable detailed logging
 
 # =============================================================================
